@@ -1,0 +1,190 @@
+﻿<Window x:Class="MasterPol.WPF.AddSaleWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Добавление продажи" 
+        Height="550" Width="450"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize">
+    
+    <Window.Background>
+        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#667eea" Offset="0"/>
+            <GradientStop Color="#764ba2" Offset="1"/>
+        </LinearGradientBrush>
+    </Window.Background>
+
+    <Window.Resources>
+        <!-- Эффект тени -->
+        <DropShadowEffect x:Key="CardShadow" BlurRadius="15" Opacity="0.15" ShadowDepth="3" Color="#333333"/>
+        
+        <!-- Градиент для зеленых кнопок -->
+        <LinearGradientBrush x:Key="GreenGradient" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Color="#4CAF50" Offset="0"/>
+            <GradientStop Color="#45a049" Offset="1"/>
+        </LinearGradientBrush>
+        
+        <Style x:Key="ModernButtonStyle" TargetType="Button">
+            <Setter Property="Height" Value="38"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect BlurRadius="5" Opacity="0.2" ShadowDepth="2"/>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Opacity" Value="0.8"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        
+        <Style x:Key="ModernTextBoxStyle" TargetType="TextBox">
+            <Setter Property="Height" Value="35"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Padding" Value="10,5"/>
+            <Setter Property="BorderBrush" Value="#E0E0E0"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Background" Value="White"/>
+        </Style>
+        
+        <Style x:Key="ModernComboBoxStyle" TargetType="ComboBox">
+            <Setter Property="Height" Value="35"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Padding" Value="5"/>
+            <Setter Property="BorderBrush" Value="#E0E0E0"/>
+        </Style>
+    </Window.Resources>
+
+    <Border Margin="20" Background="White" CornerRadius="15" Padding="0" Effect="{StaticResource CardShadow}">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Заголовок (фиксированный) с градиентом -->
+            <Border Grid.Row="0" 
+                    Background="{StaticResource GreenGradient}" 
+                    CornerRadius="15,15,0,0" 
+                    Padding="20">
+                <TextBlock FontSize="22" FontWeight="Bold" 
+                           Text="➕ Новая продажа"
+                           Foreground="White"
+                           HorizontalAlignment="Center"/>
+            </Border>
+
+            <!-- Поля ввода с ползунком -->
+            <ScrollViewer Grid.Row="1" 
+                          VerticalScrollBarVisibility="Auto" 
+                          HorizontalScrollBarVisibility="Disabled"
+                          Padding="20,20,20,10">
+                <StackPanel>
+                    <!-- Товар -->
+                    <TextBlock Text="Товар" 
+                               FontWeight="Bold" 
+                               Foreground="#666666" 
+                               Margin="0,0,0,3"/>
+                    <ComboBox x:Name="CmbProduct" 
+                              DisplayMemberPath="Name"
+                              SelectedValuePath="Id"
+                              SelectionChanged="CmbProduct_SelectionChanged"
+                              Style="{StaticResource ModernComboBoxStyle}"
+                              Margin="0,0,0,15"/>
+
+                    <!-- Артикул (только для чтения) -->
+                    <TextBlock Text="Артикул" 
+                               FontWeight="Bold" 
+                               Foreground="#666666" 
+                               Margin="0,0,0,3"/>
+                    <TextBox x:Name="TxtArticle" 
+                             IsReadOnly="True"
+                             Background="#F5F5F5"
+                             Style="{StaticResource ModernTextBoxStyle}"
+                             Margin="0,0,0,15"/>
+
+                    <!-- Цена (только для чтения) -->
+                    <TextBlock Text="Цена" 
+                               FontWeight="Bold" 
+                               Foreground="#666666" 
+                               Margin="0,0,0,3"/>
+                    <TextBox x:Name="TxtPrice" 
+                             IsReadOnly="True"
+                             Background="#F5F5F5"
+                             Style="{StaticResource ModernTextBoxStyle}"
+                             Margin="0,0,0,15"/>
+
+                    <!-- Количество -->
+                    <TextBlock Text="Количество" 
+                               FontWeight="Bold" 
+                               Foreground="#666666" 
+                               Margin="0,0,0,3"/>
+                    <TextBox x:Name="TxtQuantity" 
+                             TextChanged="TxtQuantity_TextChanged"
+                             PreviewTextInput="TxtQuantity_PreviewTextInput"
+                             Style="{StaticResource ModernTextBoxStyle}"
+                             Margin="0,0,0,15"/>
+
+                    <!-- Дата продажи -->
+                    <TextBlock Text="Дата продажи" 
+                               FontWeight="Bold" 
+                               Foreground="#666666" 
+                               Margin="0,0,0,3"/>
+                    <DatePicker x:Name="DateSale" 
+                                SelectedDate="{Binding Date, UpdateSourceTrigger=PropertyChanged}"
+                                Height="35"
+                                FontSize="13"
+                                Margin="0,0,0,15"/>
+
+                    <!-- Предварительная сумма (яркий блок) -->
+                    <Border Background="{StaticResource GreenGradient}" 
+                            CornerRadius="10" 
+                            Padding="20" 
+                            Margin="0,10,0,0">
+                        <StackPanel>
+                            <TextBlock Text="💰 Предварительная сумма:" 
+                                       Foreground="White" 
+                                       FontWeight="Bold"
+                                       FontSize="14"
+                                       Opacity="0.9"/>
+                            <TextBlock x:Name="TxtTotalAmount" 
+                                       FontSize="32" 
+                                       FontWeight="Bold" 
+                                       Foreground="White"
+                                       Text="0 ₽"
+                                       HorizontalAlignment="Center"
+                                       Margin="0,5,0,0"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- Кнопки (фиксированные) -->
+            <Border Grid.Row="2" 
+                    Background="#F5F5F5" 
+                    CornerRadius="0,0,15,15" 
+                    Padding="15">
+                <StackPanel Orientation="Horizontal" 
+                            HorizontalAlignment="Right">
+                    <Button x:Name="BtnSave" 
+                            Content="💾 Добавить" 
+                            Width="110"
+                            Background="{StaticResource GreenGradient}"
+                            Style="{StaticResource ModernButtonStyle}"
+                            Click="BtnSave_Click"
+                            Margin="0,0,8,0"/>
+                    <Button x:Name="BtnCancel" 
+                            Content="✖ Отмена" 
+                            Width="90"
+                            Background="#F44336"
+                            Style="{StaticResource ModernButtonStyle}"
+                            Click="BtnCancel_Click"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+</Window>
