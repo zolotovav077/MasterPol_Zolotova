@@ -1,0 +1,194 @@
+-- 1. Создание роли app
+CREATE ROLE app WITH LOGIN PASSWORD '123456789';
+
+-- 2. Создание базы данных
+CREATE DATABASE zolotova_database OWNER app;
+
+-- =====================================================
+-- ДЛЯ ВЫПОЛНЕНИЯ ОСТАЛЬНОЙ ЧАСТИ СКРИПТА:
+-- Нужно подключиться к базе zolotova_database вручную
+-- через pgAdmin или выполнить команду в psql:
+-- \c zolotova_database
+-- =====================================================
+
+-- После подключения к базе zolotova_database выполнить:
+
+-- 3. Создание схемы
+CREATE SCHEMA IF NOT EXISTS app AUTHORIZATION app;
+
+-- 4. Установка схемы по умолчанию
+SET search_path TO app;
+
+-- 5. Таблица типов партнеров
+CREATE TABLE IF NOT EXISTS app.partner_types (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 6. Таблица партнеров
+CREATE TABLE IF NOT EXISTS app.partners (
+    id SERIAL PRIMARY KEY,
+    type_id INTEGER NOT NULL,
+    company_name VARCHAR(250) NOT NULL,
+    legal_address TEXT,
+    inn_number VARCHAR(12) UNIQUE,
+    director_fullname VARCHAR(200),
+    contact_phone VARCHAR(20),
+    contact_email VARCHAR(100),
+    partner_rating INTEGER DEFAULT 0 CHECK (partner_rating >= 0),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_partners_type_id FOREIGN KEY (type_id) 
+        REFERENCES app.partner_types(id) ON DELETE RESTRICT
+);
+
+-- 7. Таблица продукции
+CREATE TABLE IF NOT EXISTS app.products (
+    id SERIAL PRIMARY KEY,
+    product_article VARCHAR(50) UNIQUE NOT NULL,
+    product_type VARCHAR(100),
+    product_name VARCHAR(250) NOT NULL,
+    minimal_price DECIMAL(12, 2) DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 8. Таблица истории продаж
+CREATE TABLE IF NOT EXISTS app.sale_history (
+    id SERIAL PRIMARY KEY,
+    partner_id INTEGER NOT NULL,
+    product_id INTEGER NOT NULL,
+    quantity_sold INTEGER NOT NULL CHECK (quantity_sold > 0),
+    sale_date DATE NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_sale_history_partner_id FOREIGN KEY (partner_id) 
+        REFERENCES app.partners(id) ON DELETE CASCADE,
+    CONSTRAINT fk_sale_history_product_id FOREIGN KEY (product_id) 
+        REFERENCES app.products(id) ON DELETE RESTRICT
+);
+
+-- 9. Индексы
+CREATE INDEX IF NOT EXISTS idx_partners_type_id ON app.partners(type_id);
+CREATE INDEX IF NOT EXISTS idx_partners_company_name ON app.partners(company_name);
+CREATE INDEX IF NOT EXISTS idx_sale_history_partner_id ON app.sale_history(partner_id);
+CREATE INDEX IF NOT EXISTS idx_sale_history_sale_date ON app.sale_history(sale_date);
+CREATE INDEX IF NOT EXISTS idx_sale_history_partner_date ON app.sale_history(partner_id, sale_date);
+CREATE INDEX IF NOT EXISTS idx_products_article ON app.products(product_article);
+CREATE INDEX IF NOT EXISTS idx_products_name ON app.products(product_name);
+
+-- 10. Права доступа
+GRANT USAGE ON SCHEMA app TO app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA app TO app;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA app TO app;
+
+-- 11. Функция расчета общей суммы продаж партнера
+CREATE OR REPLACE FUNCTION app.get_partner_total_sales(p_partner_id INTEGER)
+RETURNS DECIMAL(12,2) AS $$
+DECLARE
+    v_total DECIMAL(12,2);
+BEGIN
+    SELECT COALESCE(SUM(s.quantity_sold * p.minimal_price), 0)
+    INTO v_total
+    FROM app.sale_history s
+    JOIN app.products p ON s.product_id = p.id
+    WHERE s.partner_id = p_partner_id;
+    
+    RETURN v_total;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 12. Функция расчета скидки партнера
+CREATE OR REPLACE FUNCTION app.calculate_partner_discount(p_partner_id INTEGER)
+RETURNS INTEGER AS $$
+DECLARE
+    v_total_sales DECIMAL(12,2);
+    v_discount INTEGER;
+BEGIN
+    v_total_sales := app.get_partner_total_sales(p_partner_id);
+    
+    IF v_total_sales > 300000 THEN
+        v_discount := 15;
+    ELSIF v_total_sales > 50000 THEN
+        v_discount := 10;
+    ELSIF v_total_sales > 10000 THEN
+        v_discount := 5;
+    ELSE
+        v_discount := 0;
+    END IF;
+    
+    RETURN v_discount;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 13. Процедура добавления продажи
+CREATE OR REPLACE PROCEDURE app.add_sale(
+    p_partner_id INTEGER,
+    p_product_id INTEGER,
+    p_quantity INTEGER,
+    p_sale_date DATE DEFAULT CURRENT_DATE
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    INSERT INTO app.sale_history (partner_id, product_id, quantity_sold, sale_date, created_at)
+    VALUES (p_partner_id, p_product_id, p_quantity, p_sale_date, CURRENT_TIMESTAMP);
+END;
+$$;
+
+-- 14. Функция для триггера обновления updated_at
+CREATE OR REPLACE FUNCTION app.update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 15. Триггер для автоматического обновления updated_at
+DROP TRIGGER IF EXISTS trigger_partners_updated_at ON app.partners;
+CREATE TRIGGER trigger_partners_updated_at
+    BEFORE UPDATE ON app.partners
+    FOR EACH ROW
+    EXECUTE FUNCTION app.update_updated_at_column();
+
+-- 16. Вставка тестовых данных - типы партнеров
+INSERT INTO app.partner_types (name) VALUES 
+('Розничный магазин'),
+('Оптовый магазин'),
+('Интернет-магазин'),
+('Дистрибьютор')
+ON CONFLICT DO NOTHING;
+
+-- 17. Вставка тестовых данных - продукция
+INSERT INTO app.products (product_article, product_type, product_name, minimal_price) VALUES
+('LAM-001', 'Ламинат', 'Ламинат Дуб натуральный 32 класс', 850.00),
+('LAM-002', 'Ламинат', 'Ламинат Орех итальянский 33 класс', 1200.00),
+('PAR-001', 'Паркет', 'Паркетная доска Ясень 14мм', 2500.00),
+('LIN-001', 'Линолеум', 'Линолеум бытовой Дуб 3м', 450.00),
+('PLIN-001', 'Плинтус', 'Плинтус напольный Дуб 2.5м', 180.00)
+ON CONFLICT (product_article) DO NOTHING;
+
+-- 18. Вставка тестовых данных - партнеры
+INSERT INTO app.partners (type_id, company_name, legal_address, inn_number, director_fullname, contact_phone, contact_email, partner_rating) VALUES
+(1, 'Пол-Маркет', 'г. Москва, ул. Строителей, 10', '770112345678', 'Иванов Иван Иванович', '+7 (495) 123-45-67', 'info@polmarket.ru', 5),
+(2, 'СтройОптТорг', 'г. Санкт-Петербург, пр. Металлистов, 5', '780212345678', 'Петров Петр Петрович', '+7 (812) 234-56-78', 'sale@stroyopt.ru', 4),
+(3, 'Дом-Интерьер', 'г. Екатеринбург, ул. Ленина, 25', '660312345678', 'Сидорова Анна Сергеевна', '+7 (343) 345-67-89', 'info@dominterior.ru', 5),
+(4, 'ТД Напольные покрытия', 'г. Новосибирск, ул. Советская, 15', '540412345678', 'Козлов Дмитрий Николаевич', '+7 (383) 456-78-90', 'zakaz@tdfloor.ru', 3)
+ON CONFLICT (inn_number) DO NOTHING;
+
+-- 19. Вставка тестовых данных - история продаж
+INSERT INTO app.sale_history (partner_id, product_id, quantity_sold, sale_date) VALUES
+(1, 1, 150, '2025-01-15'),
+(1, 3, 50, '2025-02-10'),
+(2, 2, 200, '2025-01-20'),
+(2, 5, 500, '2025-03-05'),
+(3, 1, 300, '2025-02-25'),
+(3, 4, 1000, '2025-03-10'),
+(4, 2, 400, '2025-01-30')
+ON CONFLICT DO NOTHING;
+
+-- 20. Проверка созданных таблиц
+SELECT table_schema, table_name 
+FROM information_schema.tables 
+WHERE table_schema = 'app'
+ORDER BY table_name;
